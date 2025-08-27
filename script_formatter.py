@@ -82,7 +82,7 @@ async def process_tiktok_url(url: str):
         
         # --- Step 2: Transcribe the Known File ---
         transcriber = aai.Transcriber()
-        config = aai.TranscriptionConfig(speaker_labels=True, profanity_filtering=False)
+        config = aai.TranscriptionConfig(speaker_labels=True, filter_profanity=False)
 
         print("Starting transcription...")
         # We know the exact filename, so we can use it directly.

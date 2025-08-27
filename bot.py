@@ -62,7 +62,7 @@ async def format_command(interaction: discord.Interaction, url: str):
         error_embed = discord.Embed(
             title="An Error Occurred",
             description=f"Sorry, an error occurred while processing the video.\nPlease check the URL and try again.",
-            color=discord.color.red()
+            color=discord.Color.red()
         )
         error_embed.add_field(name="Error Details", value=f"`{e}`", inline=False)
         await interaction.followup.send(embed=error_embed)
