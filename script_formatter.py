@@ -4,47 +4,49 @@ import os
 import re
 
 # This is the final, balanced formatting function
+import re
+
+# This is the final, smarter formatting function
 def format_script_chunks(script: str):
-    # Configuration
-    WORDS_PER_SECOND = 2.5
-    SECONDS_PER_CLIP = 8
-    words_per_chunk = int(WORDS_PER_SECOND * SECONDS_PER_CLIP) # Approx. 20 words
+    # --- Configuration ---
+    # We will aim for a range now, not a fixed number.
+    TARGET_WORDS = 27  # Approx 10-11 seconds, our ideal target
+    MAX_WORDS = 35     # The absolute max before we force a new chunk
 
-    # --- Step 1: Split by full sentences to respect natural pauses ---
+    # --- Step 1: Split by full sentences ---
     sentences = re.split(r'(?<=[.?!])\s+', script)
-
-    if not sentences:
-        return "**HOOK:**\n\n**Backend 1:**\n"
+    if not sentences: return ""
 
     # --- Step 2: Define the Hook ---
-    # The hook is still generally the first one or two sentences.
     hook = sentences[0]
     backend_sentences = sentences[1:]
-    
-    # If the first sentence is very short, grab the next one for the hook too.
-    if len(hook.split()) < 12 and len(backend_sentences) > 0:
+    if len(hook.split()) < 15 and len(backend_sentences) > 0:
         hook += " " + backend_sentences[0]
         backend_sentences = backend_sentences[1:]
     
-    # --- Step 3: Intelligently Group Sentences into Backend Chunks ---
+    # --- Step 3: The Smart Grouping Logic ---
     backend_chunks = []
     current_chunk_sentences = []
     
     for sentence in backend_sentences:
         if not sentence.strip(): continue
-        
-        # Add the next sentence to our current group
-        current_chunk_sentences.append(sentence)
-        
-        # Check if the current group of sentences has reached our target length
-        current_chunk_text = " ".join(current_chunk_sentences)
-        if len(current_chunk_text.split()) >= words_per_chunk:
-            # If it's long enough, finalize this chunk
-            backend_chunks.append(current_chunk_text)
-            # and reset for the next chunk
-            current_chunk_sentences = []
+
+        # Calculate word counts
+        current_chunk_word_count = len(" ".join(current_chunk_sentences).split())
+        sentence_word_count = len(sentence.split())
+
+        # Check our conditions BEFORE adding the new sentence
+        if current_chunk_sentences and (current_chunk_word_count + sentence_word_count > MAX_WORDS):
+            # If adding this sentence would make the chunk too long,
+            # finalize the CURRENT chunk first.
+            backend_chunks.append(" ".join(current_chunk_sentences))
+            # Then, start a NEW chunk with the current sentence.
+            current_chunk_sentences = [sentence]
+        else:
+            # Otherwise, it's safe to add this sentence to the current chunk.
+            current_chunk_sentences.append(sentence)
     
-    # After the loop, if there are any leftover sentences, make them the final chunk.
+    # Add the last remaining chunk
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
