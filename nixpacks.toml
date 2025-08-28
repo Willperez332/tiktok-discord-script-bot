@@ -1,0 +1,6 @@
+# nixpacks.toml
+
+[phases.setup]
+# This tells Railway to install FFmpeg using the system package manager (apt)
+# before it does anything else.
+aptPkgs = ["ffmpeg"]
