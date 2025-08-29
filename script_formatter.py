@@ -33,7 +33,7 @@ def format_script_chunks(script: str):
             final_output += f"**Backend {i + 1}:**\n{chunk.strip()}\n\n"
     return final_output
 
-# --- THIS IS THE NEW, UPGRADED TRANSCRIPTION LOGIC ---
+# --- THE CORRECTED DEEPGRAM LOGIC ---
 async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
     final_audio_filename = "downloaded_audio.mp3"
 
@@ -50,27 +50,24 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
             ydl.download([url])
         print(f"Audio file created: {final_audio_filename}")
         
-        # --- Step 1: Prepare the audio file for Deepgram ---
         with open(final_audio_filename, "rb") as audio_file:
             buffer_data = audio_file.read()
 
         payload: FileSource = {"buffer": buffer_data}
 
-        # --- Step 2: Configure and run Deepgram transcription ---
-        # We use 'nova-2' for the highest accuracy. Diarize is crucial for speaker separation.
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         print("Starting transcription with Deepgram...")
         response = await deepgram_client.listen.asyncprerecorded.v("1").transcribe_file(payload, options)
         
-        # --- Step 3: Isolate the Main Speaker (Deepgram's way) ---
-        # Deepgram returns a list of "paragraphs" with speaker labels.
+        # --- Step 3: Isolate the Main Speaker (Corrected Logic) ---
         paragraphs = response.results.channels[0].alternatives[0].paragraphs.paragraphs
         
-        # Count the words spoken by each speaker
         speaker_word_counts = {}
         for para in paragraphs:
             speaker = para.speaker
-            word_count = len(para.transcript.split())
+            # THE FIX IS HERE: We get the text by joining the sentences inside the paragraph.
+            paragraph_text = " ".join([sentence.text for sentence in para.sentences])
+            word_count = len(paragraph_text.split())
             speaker_word_counts[speaker] = speaker_word_counts.get(speaker, 0) + word_count
         
         if not speaker_word_counts:
@@ -79,8 +76,12 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         main_speaker_id = max(speaker_word_counts, key=speaker_word_counts.get)
         print(f"Identified main speaker: {main_speaker_id}")
 
-        # --- Step 4: Combine the main speaker's text ---
-        creator_script_parts = [para.transcript for para in paragraphs if para.speaker == main_speaker_id]
+        # --- Step 4: Combine the main speaker's text (Corrected Logic) ---
+        # AND THE FIX IS HERE: We do the same thing to get the final script.
+        creator_script_parts = [
+            " ".join([sentence.text for sentence in para.sentences]) 
+            for para in paragraphs if para.speaker == main_speaker_id
+        ]
         clean_transcript = " ".join(creator_script_parts)
 
         print("Transcription finished.")
