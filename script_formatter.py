@@ -9,11 +9,13 @@ def format_script_chunks(script: str):
     MAX_WORDS = 35
     sentences = re.split(r'(?<=[.?!])\s+', script)
     if not sentences: return ""
+
     hook = sentences[0]
     backend_sentences = sentences[1:]
     if len(hook.split()) < 15 and len(backend_sentences) > 0:
         hook += " " + backend_sentences[0]
         backend_sentences = backend_sentences[1:]
+    
     backend_chunks = []
     current_chunk_sentences = []
     for sentence in backend_sentences:
@@ -27,10 +29,18 @@ def format_script_chunks(script: str):
             current_chunk_sentences.append(sentence)
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
-    final_output = f"**HOOK:**\n{hook.strip()}\n\n"
+
+    # --- THIS IS THE ONLY PART THAT CHANGES ---
+    # We now add the prefix to the hook and each backend chunk.
+    
+    # Format the hook
+    final_output = f"**HOOK:**\nNO CAPTIONS ON SCREEN. [Avatar says] {hook.strip()}\n\n"
+    
+    # Format the backends
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
-            final_output += f"**Backend {i + 1}:**\n{chunk.strip()}\n\n"
+            final_output += f"**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. [Avatar says] {chunk.strip()}\n\n"
+
     return final_output
 
 # --- THE CORRECTED DEEPGRAM LOGIC ---
