@@ -1,7 +1,7 @@
 import yt_dlp
 import os
 import re
-from deepgram import AsyncDeepgramClient, PrerecordedOptions, FileSource
+from deepgram import DeepgramClient, PrerecordedOptions, FileSource
 
 # This is the final, smarter formatting function (no changes needed here)
 def format_script_chunks(script: str):
@@ -34,7 +34,7 @@ def format_script_chunks(script: str):
     return final_output
 
 # --- THIS IS THE NEW, UPGRADED TRANSCRIPTION LOGIC ---
-async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient):
+async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
     final_audio_filename = "downloaded_audio.mp3"
 
     ydl_opts = {
@@ -60,7 +60,7 @@ async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient):
         # We use 'nova-2' for the highest accuracy. Diarize is crucial for speaker separation.
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         print("Starting transcription with Deepgram...")
-        response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
+        response = await deepgram_client.listen.asyncprerecorded.v("1").transcribe_file(payload, options)
         
         # --- Step 3: Isolate the Main Speaker (Deepgram's way) ---
         # Deepgram returns a list of "paragraphs" with speaker labels.
