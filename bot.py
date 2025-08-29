@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # --- Import the new transcription engine and the formatter ---
 from script_formatter import process_tiktok_url, format_script_chunks
 # --- Import Deepgram ---
-from deepgram import DeepgramClient
+from deepgram import AsyncDeepgramClient
 
 # --- Load all our secret keys ---
 load_dotenv()
@@ -14,7 +14,7 @@ BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY") # We use this now
 
 # --- Initialize the Deepgram Client ---
-deepgram_client = DeepgramClient(DEEPGRAM_API_KEY)
+deepgram_client = AsyncDeepgramClient(DEEPGRAM_API_KEY)
 
 # --- Standard Bot Setup ---
 intents = discord.Intents.default()

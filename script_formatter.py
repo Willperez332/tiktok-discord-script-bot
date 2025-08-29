@@ -1,7 +1,7 @@
 import yt_dlp
 import os
 import re
-from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+from deepgram import AsyncDeepgramClient, PrerecordedOptions, FileSource
 
 # This is the final, smarter formatting function (no changes needed here)
 def format_script_chunks(script: str):
@@ -34,7 +34,7 @@ def format_script_chunks(script: str):
     return final_output
 
 # --- THIS IS THE NEW, UPGRADED TRANSCRIPTION LOGIC ---
-async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
+async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient):
     final_audio_filename = "downloaded_audio.mp3"
 
     ydl_opts = {
