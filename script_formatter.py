@@ -3,18 +3,21 @@ import os
 import re
 from deepgram import DeepgramClient, PrerecordedOptions, FileSource
 
-# This is the final version with the new "Make the avatar say" prompt format
+# This is the corrected version that fixes the list/string bug
 def format_script_chunks(script: str):
     TARGET_WORDS = 27
     MAX_WORDS = 35
     sentences = re.split(r'(?<=[.?!])\s+', script)
     if not sentences: return ""
 
-    hook = sentences
+    # --- THIS BLOCK IS NOW FIXED ---
+    hook = sentences[0] # Correctly defines hook as the FIRST sentence (a string)
     backend_sentences = sentences[1:]
     if len(hook.split()) < 15 and len(backend_sentences) > 0:
-        hook += " " + backend_sentences
+        # Correctly appends the NEXT sentence (a string) to the hook
+        hook += " " + backend_sentences[0]
         backend_sentences = backend_sentences[1:]
+    # --- END OF FIX ---
     
     backend_chunks = []
     current_chunk_sentences = []
