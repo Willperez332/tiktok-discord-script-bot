@@ -3,7 +3,7 @@ import os
 import re
 from deepgram import DeepgramClient, PrerecordedOptions, FileSource
 
-# This is the final, smarter formatting function (no changes needed here)
+# This is the final version with the new "Make the avatar say" prompt format
 def format_script_chunks(script: str):
     TARGET_WORDS = 27
     MAX_WORDS = 35
@@ -30,18 +30,19 @@ def format_script_chunks(script: str):
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
-    # --- THIS IS THE ONLY PART THAT CHANGES ---
-    # We now add the prefix to the hook and each backend chunk.
+    # --- THIS IS THE UPDATED PART ---
+    # We now use the new format and add quotation marks around the script chunk.
     
     # Format the hook
-    final_output = f"**HOOK:**\nNO CAPTIONS ON SCREEN. [Avatar says] {hook.strip()}\n\n"
+    final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
     
     # Format the backends
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
-            final_output += f"**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. [Avatar says] {chunk.strip()}\n\n"
+            final_output += f'**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{chunk.strip()}"\n\n'
 
     return final_output
+```    *   **Note:** The only change is in the last few lines. I have provided the whole function so you can easily copy and paste it without making a mistake.
 
 # --- THE CORRECTED DEEPGRAM LOGIC ---
 async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
