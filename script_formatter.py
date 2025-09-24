@@ -10,10 +10,10 @@ def format_script_chunks(script: str):
     sentences = re.split(r'(?<=[.?!])\s+', script)
     if not sentences: return ""
 
-    hook = sentences[0]
+    hook = sentences
     backend_sentences = sentences[1:]
     if len(hook.split()) < 15 and len(backend_sentences) > 0:
-        hook += " " + backend_sentences[0]
+        hook += " " + backend_sentences
         backend_sentences = backend_sentences[1:]
     
     backend_chunks = []
@@ -30,9 +30,6 @@ def format_script_chunks(script: str):
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
-    # --- THIS IS THE UPDATED PART ---
-    # We now use the new format and add quotation marks around the script chunk.
-    
     # Format the hook
     final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
     
@@ -42,7 +39,6 @@ def format_script_chunks(script: str):
             final_output += f'**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{chunk.strip()}"\n\n'
 
     return final_output
-```    *   **Note:** The only change is in the last few lines. I have provided the whole function so you can easily copy and paste it without making a mistake.
 
 # --- THE CORRECTED DEEPGRAM LOGIC ---
 async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
