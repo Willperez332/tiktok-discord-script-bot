@@ -4,17 +4,16 @@ import os
 from dotenv import load_dotenv
 
 from script_formatter import process_tiktok_url, format_script_chunks
-# --- Use the original DeepgramClient ---
-from deepgram import DeepgramClient
+# --- Import the ASYNC version of the client for v3 ---
+from deepgram import AsyncDeepgramClient
 
 # --- Load all our secret keys ---
 load_dotenv()
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 
-# --- Initialize the standard Deepgram Client ---
-# The older version of this client handles async calls correctly.
-deepgram_client = DeepgramClient(DEEPGRAM_API_KEY)
+# --- Initialize the AsyncDeepgram Client ---
+deepgram_client = AsyncDeepgramClient(DEEPGRAM_API_KEY)
 
 # --- Standard Bot Setup ---
 intents = discord.Intents.default()
@@ -25,7 +24,7 @@ tree = app_commands.CommandTree(client)
 async def on_ready():
     await tree.sync()
     print(f'Bot is logged in as {client.user}')
-    print('Ready to receive commands with Deepgram engine!')
+    print('Ready to receive commands with Async Deepgram engine!')
 
 @tree.command(name="format", description="Formats a TikTok script from a URL using the Deepgram engine.")
 @app_commands.describe(url="The full TikTok video URL.")
