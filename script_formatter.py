@@ -35,6 +35,7 @@ def format_script_chunks(script: str):
 
     # Format the hook
     final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
+    
     # Format the backends
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
@@ -67,7 +68,8 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         print("Starting transcription with Deepgram...")
         response = await deepgram_client.listen.asyncprerecorded.v("1").transcribe_file(payload, options)
-         # --- Step 3: Isolate the Main Speaker (Corrected Logic) ---
+        
+        # --- Step 3: Isolate the Main Speaker (Corrected Logic) ---
         paragraphs = response.results.channels[0].alternatives[0].paragraphs.paragraphs
         
         speaker_word_counts = {}

@@ -43,27 +43,13 @@ async def format_command(interaction: discord.Interaction, url: str):
 
         formatted_output = format_script_chunks(clean_script)
         
-        # --- START OF THE ONLY CHANGE YOU NEEDED ---
-
-        # 1. Create the embed, but with a simpler description since the script will be outside it.
         embed = discord.Embed(
             title="Formatted TikTok Script",
-            description="See the full script below for easy copying.",
+            description=formatted_output,
             color=discord.Color.green()
         )
         embed.add_field(name="Original URL", value=url, inline=False)
-
-        # 2. Put the full script into a copyable code block.
-        # This checks for Discord's character limit to prevent errors.
-        if len(formatted_output) > 1990:
-             copyable_script = f"```{formatted_output[:1990]}...```"
-        else:
-            copyable_script = f"```{formatted_output}```"
-        
-        # 3. Send the code block as 'content' AND send the embed.
-        await interaction.followup.send(content=copyable_script, embed=embed)
-
-        # --- END OF THE ONLY CHANGE YOU NEEDED ---
+        await interaction.followup.send(embed=embed)
 
     except Exception as e:
         print(f"An error occurred: {e}")
