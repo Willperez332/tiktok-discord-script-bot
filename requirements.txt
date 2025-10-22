@@ -3,4 +3,4 @@ python-dotenv
 assemblyai
 yt-dlp
 PyNaCl
-deepgram-sdk
+deepgram-sdk==3.2.1
