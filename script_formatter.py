@@ -2,51 +2,60 @@ import yt_dlp
 import os
 import re
 
-# --- START OF THE DEFINITIVE FIX ---
-# This is the correct import path for version 3+ of the deepgram-sdk
-from deepgram.clients.prerecorded.v1.options import PrerecordedOptions
-from deepgram.sources import BufferSource
-# --- END OF THE DEFINITIVE FIX ---
+# --- START OF FIX ---
+# These are the correct imports for deepgram-sdk v3.x.x
+# They will now work because of the version pinning in requirements.txt
+from deepgram import (
+    DeepgramClient,
+    PrerecordedOptions,
+    FileSource,
+)
+# --- END OF FIX ---
 
-from deepgram import DeepgramClient
-
-# This function remains the same
 def format_script_chunks(script: str):
+    """Formats a script into a HOOK and backend chunks of a target word count."""
     TARGET_WORDS = 27
     MAX_WORDS = 35
-    sentences = re.split(r'(?<=[.?!])\s+', script)
-    if not sentences: return ""
+    sentences = re.split(r'(?<=[.?!])\s+', script.strip())
+    if not sentences or not sentences[0]:
+        return ""
 
-    hook = sentences[0]
-    backend_sentences = sentences[1:]
-    if len(hook.split()) < 15 and len(backend_sentences) > 0:
-        hook += " " + backend_sentences[0]
-        backend_sentences = backend_sentences[1:]
+    hook = sentences.pop(0)
+    backend_sentences = sentences
     
+    # If the first sentence is short, combine it with the next one to create a better hook.
+    if len(hook.split()) < 15 and backend_sentences:
+        hook += " " + backend_sentences.pop(0)
+
+    # Group remaining sentences into chunks
     backend_chunks = []
     current_chunk_sentences = []
     for sentence in backend_sentences:
-        if not sentence.strip(): continue
+        if not sentence.strip():
+            continue
+        
         current_chunk_word_count = len(" ".join(current_chunk_sentences).split())
         sentence_word_count = len(sentence.split())
+
         if current_chunk_sentences and (current_chunk_word_count + sentence_word_count > MAX_WORDS):
             backend_chunks.append(" ".join(current_chunk_sentences))
             current_chunk_sentences = [sentence]
         else:
             current_chunk_sentences.append(sentence)
+            
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
+    # Build the final formatted string
     final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
-    
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
             final_output += f'**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{chunk.strip()}"\n\n'
 
     return final_output
 
-# --- THE DEEPGRAM LOGIC, UPDATED FOR V3 ---
 async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
+    """Downloads audio from a URL, transcribes it, and returns the main speaker's script."""
     final_audio_filename = "downloaded_audio.mp3"
 
     ydl_opts = {
@@ -54,6 +63,7 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         'outtmpl': final_audio_filename.replace('.mp3', ''),
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
         'quiet': True,
+        'no_warnings': True,
     }
 
     try:
@@ -61,21 +71,24 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         print(f"Audio file created: {final_audio_filename}")
-        
+
         with open(final_audio_filename, "rb") as audio_file:
             buffer_data = audio_file.read()
 
-        # --- UPDATED FOR V3 ---
-        payload: BufferSource = {"buffer": buffer_data}
-
+        # The payload and options are correct for v3.x
+        payload: FileSource = {"buffer": buffer_data}
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
+        
         print("Starting transcription with Deepgram...")
-        # The API call is slightly different in v3
+        # The API call method is also correct for v3.x
         response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
         
-        # The response structure is also slightly different in v3
-        paragraphs = response.results.channels[0].alternatives[0].paragraphs.paragraphs
-        
+        results = response.results
+        if not results or not results.channels:
+            raise Exception("No speech was detected in the audio.")
+
+        # Isolate the main speaker based on word count
+        paragraphs = results.channels[0].alternatives[0].paragraphs.paragraphs
         speaker_word_counts = {}
         for para in paragraphs:
             speaker = para.speaker
@@ -84,13 +97,14 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
             speaker_word_counts[speaker] = speaker_word_counts.get(speaker, 0) + word_count
         
         if not speaker_word_counts:
-            raise Exception("No speech was detected by Deepgram.")
+            raise Exception("Deepgram did not detect any speakers.")
             
         main_speaker_id = max(speaker_word_counts, key=speaker_word_counts.get)
         print(f"Identified main speaker: {main_speaker_id}")
 
+        # Combine the main speaker's text
         creator_script_parts = [
-            " ".join([sentence.text for sentence in para.sentences]) 
+            " ".join([sentence.text for sentence in para.sentences])
             for para in paragraphs if para.speaker == main_speaker_id
         ]
         clean_transcript = " ".join(creator_script_parts)
