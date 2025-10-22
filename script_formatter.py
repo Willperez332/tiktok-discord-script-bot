@@ -2,30 +2,26 @@ import yt_dlp
 import os
 import re
 
-# --- START OF CORRECTION ---
-# The import path for these options has changed in recent versions of the deepgram-sdk
-from deepgram import (
-    DeepgramClient,
-    PrerecordedOptions,
-    FileSource,
-)
-# --- END OF CORRECTION ---
+# --- START OF THE DEFINITIVE FIX ---
+# This is the correct import path for version 3+ of the deepgram-sdk
+from deepgram.clients.prerecorded.v1.options import PrerecordedOptions
+from deepgram.sources import BufferSource
+# --- END OF THE DEFINITIVE FIX ---
 
-# This is the corrected version that fixes the list/string bug
+from deepgram import DeepgramClient
+
+# This function remains the same
 def format_script_chunks(script: str):
     TARGET_WORDS = 27
     MAX_WORDS = 35
     sentences = re.split(r'(?<=[.?!])\s+', script)
     if not sentences: return ""
 
-    # --- THIS BLOCK IS NOW FIXED ---
-    hook = sentences[0] # Correctly defines hook as the FIRST sentence (a string)
+    hook = sentences[0]
     backend_sentences = sentences[1:]
     if len(hook.split()) < 15 and len(backend_sentences) > 0:
-        # Correctly appends the NEXT sentence (a string) to the hook
         hook += " " + backend_sentences[0]
         backend_sentences = backend_sentences[1:]
-    # --- END OF FIX ---
     
     backend_chunks = []
     current_chunk_sentences = []
@@ -41,17 +37,15 @@ def format_script_chunks(script: str):
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
-    # Format the hook
     final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
     
-    # Format the backends
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
             final_output += f'**Backend {i + 1}:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{chunk.strip()}"\n\n'
 
     return final_output
 
-# --- THE CORRECTED DEEPGRAM LOGIC ---
+# --- THE DEEPGRAM LOGIC, UPDATED FOR V3 ---
 async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
     final_audio_filename = "downloaded_audio.mp3"
 
@@ -71,24 +65,20 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         with open(final_audio_filename, "rb") as audio_file:
             buffer_data = audio_file.read()
 
-        payload: FileSource = {"buffer": buffer_data}
+        # --- UPDATED FOR V3 ---
+        payload: BufferSource = {"buffer": buffer_data}
 
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         print("Starting transcription with Deepgram...")
-        # --- THE METHOD OF CALLING THE API HAS ALSO BEEN SLIGHTLY UPDATED ---
+        # The API call is slightly different in v3
         response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
         
-        # --- Step 3: Isolate the Main Speaker (Corrected Logic) ---
-        # The path to the paragraphs has changed slightly in the new version
-        if not response.results or not response.results.channels:
-            raise Exception("No speech was detected or the response structure is unexpected.")
-            
+        # The response structure is also slightly different in v3
         paragraphs = response.results.channels[0].alternatives[0].paragraphs.paragraphs
         
         speaker_word_counts = {}
         for para in paragraphs:
             speaker = para.speaker
-            # THE FIX IS HERE: We get the text by joining the sentences inside the paragraph.
             paragraph_text = " ".join([sentence.text for sentence in para.sentences])
             word_count = len(paragraph_text.split())
             speaker_word_counts[speaker] = speaker_word_counts.get(speaker, 0) + word_count
@@ -99,8 +89,6 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         main_speaker_id = max(speaker_word_counts, key=speaker_word_counts.get)
         print(f"Identified main speaker: {main_speaker_id}")
 
-        # --- Step 4: Combine the main speaker's text (Corrected Logic) ---
-        # AND THE FIX IS HERE: We do the same thing to get the final script.
         creator_script_parts = [
             " ".join([sentence.text for sentence in para.sentences]) 
             for para in paragraphs if para.speaker == main_speaker_id
