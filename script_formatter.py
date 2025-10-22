@@ -1,7 +1,15 @@
 import yt_dlp
 import os
 import re
-from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+
+# --- START OF CORRECTION ---
+# The import path for these options has changed in recent versions of the deepgram-sdk
+from deepgram import (
+    DeepgramClient,
+    PrerecordedOptions,
+    FileSource,
+)
+# --- END OF CORRECTION ---
 
 # This is the corrected version that fixes the list/string bug
 def format_script_chunks(script: str):
@@ -67,9 +75,14 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
 
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         print("Starting transcription with Deepgram...")
-        response = await deepgram_client.listen.asyncprerecorded.v("1").transcribe_file(payload, options)
+        # --- THE METHOD OF CALLING THE API HAS ALSO BEEN SLIGHTLY UPDATED ---
+        response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
         
         # --- Step 3: Isolate the Main Speaker (Corrected Logic) ---
+        # The path to the paragraphs has changed slightly in the new version
+        if not response.results or not response.results.channels:
+            raise Exception("No speech was detected or the response structure is unexpected.")
+            
         paragraphs = response.results.channels[0].alternatives[0].paragraphs.paragraphs
         
         speaker_word_counts = {}
