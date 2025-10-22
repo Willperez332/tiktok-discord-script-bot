@@ -2,18 +2,17 @@ import yt_dlp
 import os
 import re
 
-# --- START OF FIX ---
-# These are the correct imports for deepgram-sdk v3.x.x
-# They will now work because of the version pinning in requirements.txt
+# --- START OF CHANGE ---
+# Import the specific asynchronous client and its corresponding options
 from deepgram import (
-    DeepgramClient,
+    AsyncDeepgramClient,
     PrerecordedOptions,
     FileSource,
 )
-# --- END OF FIX ---
+# --- END OF CHANGE ---
 
+# This function does not need to be changed
 def format_script_chunks(script: str):
-    """Formats a script into a HOOK and backend chunks of a target word count."""
     TARGET_WORDS = 27
     MAX_WORDS = 35
     sentences = re.split(r'(?<=[.?!])\s+', script.strip())
@@ -23,11 +22,9 @@ def format_script_chunks(script: str):
     hook = sentences.pop(0)
     backend_sentences = sentences
     
-    # If the first sentence is short, combine it with the next one to create a better hook.
     if len(hook.split()) < 15 and backend_sentences:
         hook += " " + backend_sentences.pop(0)
 
-    # Group remaining sentences into chunks
     backend_chunks = []
     current_chunk_sentences = []
     for sentence in backend_sentences:
@@ -46,7 +43,6 @@ def format_script_chunks(script: str):
     if current_chunk_sentences:
         backend_chunks.append(" ".join(current_chunk_sentences))
 
-    # Build the final formatted string
     final_output = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
     for i, chunk in enumerate(backend_chunks):
         if chunk.strip():
@@ -54,8 +50,10 @@ def format_script_chunks(script: str):
 
     return final_output
 
-async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
-    """Downloads audio from a URL, transcribes it, and returns the main speaker's script."""
+# --- START OF CHANGE ---
+# The function signature now correctly expects an AsyncDeepgramClient
+async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient):
+# --- END OF CHANGE ---
     final_audio_filename = "downloaded_audio.mp3"
 
     ydl_opts = {
@@ -75,19 +73,17 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         with open(final_audio_filename, "rb") as audio_file:
             buffer_data = audio_file.read()
 
-        # The payload and options are correct for v3.x
         payload: FileSource = {"buffer": buffer_data}
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         
         print("Starting transcription with Deepgram...")
-        # The API call method is also correct for v3.x
+        # Now, the 'await' call is correct because it's being used on the Async client
         response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
         
         results = response.results
         if not results or not results.channels:
             raise Exception("No speech was detected in the audio.")
 
-        # Isolate the main speaker based on word count
         paragraphs = results.channels[0].alternatives[0].paragraphs.paragraphs
         speaker_word_counts = {}
         for para in paragraphs:
@@ -102,7 +98,6 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         main_speaker_id = max(speaker_word_counts, key=speaker_word_counts.get)
         print(f"Identified main speaker: {main_speaker_id}")
 
-        # Combine the main speaker's text
         creator_script_parts = [
             " ".join([sentence.text for sentence in para.sentences])
             for para in paragraphs if para.speaker == main_speaker_id
