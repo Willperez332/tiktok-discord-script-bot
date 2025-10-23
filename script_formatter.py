@@ -1,8 +1,13 @@
 import yt_dlp
 import os
 import re
-# This is the correct import for the older library version (v2)
-from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+
+# These are the correct imports for deepgram-sdk v3+
+from deepgram import (
+    AsyncDeepgramClient,
+    PrerecordedOptions,
+    FileSource,
+)
 
 def format_script_chunks(script: str):
     """Formats a script into a HOOK and backend chunks."""
@@ -36,9 +41,9 @@ def format_script_chunks(script: str):
 
     return final_output
 
-# This function uses the older (v2) syntax that matches your library
-async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
-    """Downloads audio from a URL, transcribes it, and returns the main speaker's script."""
+# The function signature now correctly expects an AsyncDeepgramClient
+async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient):
+    """Downloads audio, transcribes it, and returns the main speaker's script."""
     final_audio_filename = "downloaded_audio.mp3"
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -54,22 +59,26 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         print(f"Audio file created: {final_audio_filename}")
 
         with open(final_audio_filename, "rb") as audio_file:
-            buffer_data = audio_file.read()
+            buffer_.data = audio_file.read()
 
         payload: FileSource = {"buffer": buffer_data}
         options = PrerecordedOptions(model="nova-2", smart_format=True, diarize=True)
         
-        print("Starting transcription with Deepgram v2 Async Client...")
-        # This is the correct API call for the v2 library
-        response = await deepgram_client.listen.asyncprerecorded.v("1").transcribe_file(payload, options)
+        print("Starting transcription with Deepgram v3 Async Client...")
+        # This is the correct API call for the v3 Async client
+        response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(payload, options)
         
-        # This is the correct way to parse the v2 response (as a dictionary)
-        paragraphs = response['results']['channels'][0]['alternatives'][0]['paragraphs']['paragraphs']
+        results = response.results
+        if not results or not results.channels:
+            raise Exception("No speech was detected in the audio.")
+
+        # This is the correct way to parse the v3 response object
+        paragraphs = results.channels[0].alternatives[0].paragraphs.paragraphs
         
         speaker_word_counts = {}
         for para in paragraphs:
-            speaker = para['speaker']
-            paragraph_text = " ".join([sentence['text'] for sentence in para['sentences']])
+            speaker = para.speaker
+            paragraph_text = " ".join([sentence.text for sentence in para.sentences])
             word_count = len(paragraph_text.split())
             speaker_word_counts[speaker] = speaker_word_counts.get(speaker, 0) + word_count
         
@@ -80,8 +89,8 @@ async def process_tiktok_url(url: str, deepgram_client: DeepgramClient):
         print(f"Identified main speaker: {main_speaker_id}")
 
         creator_script_parts = [
-            " ".join([sentence['text'] for sentence in para['sentences']]) 
-            for para in paragraphs if para['speaker'] == main_speaker_id
+            " ".join([sentence.text for sentence in para.sentences])
+            for para in paragraphs if para.speaker == main_speaker_id
         ]
         clean_transcript = " ".join(creator_script_parts)
 
