@@ -1,21 +1,20 @@
-import yt_dlp
 import os
 import re
+import asyncio
+import yt_dlp
 
-from deepgram import (
-    AsyncDeepgramClient,
-    PrerecordedOptions,
-    FileSource,
-)
+# Deepgram: support environments where only DeepgramClient exists
+from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+
 
 def format_script_chunks(script: str) -> str:
-    """Formats script into HOOK + backend chunks for ~8s pacing."""
+    """Formats script into HOOK + ~8s backend chunks, Veo 3 style."""
     MAX_WORDS = 35
     sentences = re.split(r'(?<=[.?!])\s+', script.strip())
     if not sentences or not sentences[0]:
         return ""
 
-    # Hook: ensure it’s not too short; append next sentence if needed
+    # Hook: ensure it's not too short; append next sentence if needed
     hook = sentences[0]
     backend_sentences = sentences[1:]
     if len(hook.split()) < 15 and backend_sentences:
@@ -25,9 +24,11 @@ def format_script_chunks(script: str) -> str:
     backend_chunks = []
     current = []
     for s in backend_sentences:
-        if not s.strip():
+        s = s.strip()
+        if not s:
             continue
-        if current and (len(" ".join(current).split()) + len(s.split()) > MAX_WORDS):
+        next_len = len(" ".join(current).split()) + len(s.split())
+        if current and next_len > MAX_WORDS:
             backend_chunks.append(" ".join(current))
             current = [s]
         else:
@@ -35,83 +36,104 @@ def format_script_chunks(script: str) -> str:
     if current:
         backend_chunks.append(" ".join(current))
 
-    # Format output
     out = f'**HOOK:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{hook.strip()}"\n\n'
     for i, chunk in enumerate(backend_chunks, start=1):
         if chunk.strip():
             out += f'**Backend {i}:**\nNO CAPTIONS ON SCREEN. Make the avatar say: "{chunk.strip()}"\n\n'
     return out
 
-async def process_tiktok_url(url: str, deepgram_client: AsyncDeepgramClient) -> str:
-    """
-    Downloads audio via yt_dlp, sends to Deepgram v3 async prerecorded,
-    extracts the main speaker paragraphs into a single clean transcript string.
-    """
-    final_audio_filename = "downloaded_audio.mp3"
+
+def _download_audio_sync(url: str, out_mp3: str) -> None:
+    """Blocking: download audio to MP3 using yt_dlp."""
+    tmp_base = out_mp3.replace(".mp3", "")
     ydl_opts = {
         "format": "bestaudio/best",
-        "outtmpl": final_audio_filename.replace(".mp3", ""),
+        "outtmpl": tmp_base,  # yt_dlp will append extension
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
         "quiet": True,
         "no_warnings": True,
     }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
+    # normalize final filename to out_mp3
+    candidate = tmp_base + ".mp3"
+    if os.path.exists(candidate) and candidate != out_mp3:
+        os.replace(candidate, out_mp3)
+
+
+def _transcribe_sync(audio_bytes: bytes, client: DeepgramClient) -> dict:
+    """Blocking: call Deepgram prerecorded (works on v3 and v4)."""
+    payload: FileSource = {"buffer": audio_bytes}
+    options = PrerecordedOptions(
+        model="nova-3",
+        smart_format=True,
+        diarize=True,
+    )
+    # v3 and v4 both support this path:
+    #   client.listen.prerecorded.v("1").transcribe_file(...)
+    # (In v4 it's routed via REST; in v3 it’s the classic client)
+    return client.listen.prerecorded.v("1").transcribe_file(payload, options)
+
+
+async def process_tiktok_url(url: str, deepgram_client: DeepgramClient) -> str:
+    """
+    Async wrapper:
+    - yt_dlp download runs in a thread,
+    - Deepgram call runs in a thread,
+    - extracts main speaker transcript.
+    """
+    final_audio_filename = "downloaded_audio.mp3"
     try:
-        # 1) Pull audio
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        # yt-dlp often writes without .mp3 extension; normalize names
-        candidate = final_audio_filename.replace(".mp3", "") + ".mp3"
-        if os.path.exists(candidate):
-            os.rename(candidate, final_audio_filename)
-
+        # 1) Download audio (thread)
+        await asyncio.to_thread(_download_audio_sync, url, final_audio_filename)
         if not os.path.exists(final_audio_filename):
             raise RuntimeError("Audio download failed.")
 
-        # 2) Deepgram transcription
+        # 2) Read bytes
         with open(final_audio_filename, "rb") as f:
-            buffer_data = f.read()
+            audio_bytes = f.read()
 
-        payload: FileSource = {"buffer": buffer_data}
-        options = PrerecordedOptions(
-            model="nova-3",  # or "nova-2" if you prefer your previous model
-            smart_format=True,
-            diarize=True,
-        )
+        # 3) Transcribe (thread)
+        response = await asyncio.to_thread(_transcribe_sync, audio_bytes, deepgram_client)
 
-        # v3 async prerecorded path
-        response = await deepgram_client.listen.prerecorded.v("1").transcribe_file(
-            payload, options
-        )
+        results = response.get("results")
+        if not results:
+            raise RuntimeError("No results from Deepgram.")
 
-        results = response.results
-        if not results or not results.channels:
-            raise RuntimeError("No speech detected.")
+        channels = results.get("channels", [])
+        if not channels:
+            raise RuntimeError("No channels in Deepgram results.")
 
-        # 3) Identify main speaker by total words
-        paragraphs = results.channels[0].alternatives[0].paragraphs.paragraphs
+        alt = channels[0]["alternatives"][0]
+        paragraphs = alt.get("paragraphs", {}).get("paragraphs", [])
+        if not paragraphs:
+            # fallback: join words if paragraphs absent
+            transcript = alt.get("transcript", "")
+            return transcript.strip()
+
+        # find main speaker by longest word count
         speaker_word_counts = {}
         for para in paragraphs:
-            text = " ".join([s.text for s in para.sentences])
-            speaker_word_counts[para.speaker] = speaker_word_counts.get(para.speaker, 0) + len(text.split())
+            text = " ".join([s["text"] for s in para.get("sentences", [])])
+            spk = para.get("speaker", "spk")
+            speaker_word_counts[spk] = speaker_word_counts.get(spk, 0) + len(text.split())
 
         if not speaker_word_counts:
-            raise RuntimeError("No speakers detected by diarization.")
+            # fallback to full alt transcript
+            return alt.get("transcript", "").strip()
 
         main_speaker = max(speaker_word_counts, key=speaker_word_counts.get)
-
-        # 4) Build clean transcript for main speaker only
         parts = [
-            " ".join([s.text for s in para.sentences])
+            " ".join([s["text"] for s in para.get("sentences", [])])
             for para in paragraphs
-            if para.speaker == main_speaker
+            if para.get("speaker") == main_speaker
         ]
         return " ".join(parts).strip()
 
     finally:
-        if os.path.exists(final_audio_filename):
-            try:
+        try:
+            if os.path.exists(final_audio_filename):
                 os.remove(final_audio_filename)
-            except Exception:
-                pass
+        except Exception:
+            pass
